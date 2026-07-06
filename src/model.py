@@ -71,7 +71,7 @@ def gradient_descent(X: np.ndarray, y: np.ndarray, lr: float = 0.01, epochs: int
         w -= lr * dw
         b -= lr * db
 
-        if epoch % 100 == 0:
+        if epoch % 1000 == 0:
             print(f"Epoch {epoch}, Loss: {loss:.6f}")
 
     return w, b, loss_history

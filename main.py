@@ -23,7 +23,7 @@ if __name__ == "__main__":
     print("\n=== RIDGE LAMBDA SWEEP ===")
     results = []
     for lam in lambdas:
-        w_l, b_l, _ = gradient_descent(X_train, y_train, lr=0.1, epochs=500, lambda_=lam)
+        w_l, b_l, _ = gradient_descent(X_train, y_train, lr=0.1, epochs=5000, lambda_=lam)
         y_test_pred_l = predict(X_test, w_l, b_l)
         test_mse_l = compute_loss(y_test, y_test_pred_l)  # plain MSE, no penalty term
         results.append((lam, test_mse_l, w_l, b_l))
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     print(f"\nBest lambda: {best_lam} (Test MSE: {best_mse:.6f})")
 
     # ----- Final training run with best lambda (for full logging/plots) -----
-    w, b, loss_history = gradient_descent(X_train, y_train, lr=0.1, epochs=500, lambda_=best_lam)
+    w, b, loss_history = gradient_descent(X_train, y_train, lr=0.1, epochs=5000, lambda_=best_lam)
 
     print("\nFinal weights:", w)
     print("Final bias:", b)
