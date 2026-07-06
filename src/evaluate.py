@@ -4,6 +4,18 @@ from sklearn.linear_model import LinearRegression, Ridge
 
 from src.model import predict, compute_loss
 
+def naive_baseline_mse(y_test: np.ndarray, X_test_raw: np.ndarray, lag1_col_idx: int = 0) -> float:
+    """
+    Naive baseline: predict tomorrow's volatility as today's volatility
+    (the most recent lag feature). Uses RAW (unnormalized) X_test values,
+    since y_test is also in raw units.
+
+    Any real model should beat this MSE to justify its complexity.
+    """
+    naive_pred = X_test_raw[:, lag1_col_idx]
+    return compute_loss(y_test, naive_pred)
+
+
 
 def evaluate_model(X_train, y_train, X_test, y_test, w, b, lambda_=0.0):
     """
@@ -88,3 +100,4 @@ def plot_predictions(y_true, y_pred, title="Predictions vs Actual", save_path=No
 
     plt.show()
     plt.close()
+
