@@ -1,5 +1,14 @@
-# 📈 Stock Volatility Predictor
+# 📈 Stock Volatility Forecasting
 ### Testing Five Model Families From Scratch — and Finding That None of Them Beat Guessing "Tomorrow Looks Like Today"
+
+## 🧠 Key Insights (TL;DR)
+
+- A naive persistence model ("tomorrow ≈ today") matched or outperformed all tested models.
+- Increasing model complexity (Ridge → ARIMA → GARCH) did not improve predictive performance.
+- Residual diagnostics (Ljung-Box p ≈ 0.0000) show remaining autocorrelation → signal still exists.
+- Model errors concentrate during volatility regime shifts (e.g., COVID crash), not uniformly.
+- GARCH models, while theoretically suited for volatility, did not outperform simpler models even during high-volatility periods.
+- Evaluation choice matters: GARCH must be evaluated on variance, not returns.
 
 ## 🚀 Overview
 
@@ -7,7 +16,10 @@ This project started as an attempt to take the linear regression and gradient de
 
 It grew from there. Once I had a working linear model, I kept asking "but is this actually good?" — which led to adding a naive baseline, then walk-forward validation, then testing whether a more standard time-series tool (ARIMA) or a model purpose-built for volatility (GARCH, and later GJR-GARCH) could do better. Along the way I also added residual diagnostics, a fold-by-fold and regime-by-regime breakdown, and a proper GARCH evaluation against the target it's actually designed for, to make sure the "nothing beats naive" conclusion wasn't hiding something more specific underneath. The most useful part of this project ended up being a finding I didn't expect going in: across every model I tried, simple to sophisticated, none of them reliably beat the simplest possible baseline — and the more sophisticated the model got, the worse it tended to do on average, even though a deeper look shows the failures aren't random, they concentrate around volatility regime changes. I think that result, and the process of uncovering it properly, is more interesting than a clean accuracy number would have been, so this README leads with it rather than hiding it.
 
-![Price, Returns, and Volatility](outputs/plots/price_returns_volatility.png)
+
+## 💼 Resume Summary (1–2 lines)
+
+Built a full volatility forecasting pipeline comparing linear models, ARIMA, and GARCH using walk-forward validation; found that naive persistence matches or outperforms complex models, with errors concentrated during regime shifts and residual diagnostics indicating unmodeled structure.
 
 ## 🎯 Problem Statement
 
@@ -100,7 +112,7 @@ Raw Prices → Log Returns → Rolling Volatility (+ Volume Features)
 
 My first gradient descent run produced predictions close to sklearn's `LinearRegression`, but the learned weights differed meaningfully. The EDA notebook makes the reason directly visible: the correlation matrix of the 5 lag features shows every pair correlated at 0.96 or higher. This makes sense once you look at the volatility series itself — it's a slow-moving 21-day rolling average, so a value from 5 days ago is nearly the same number as today's. With features this redundant, the loss surface isn't a clean bowl with one minimum, it's a flat, elongated valley where many different weight combinations give almost identical loss. This is the textbook reason to reach for regularization, which is what led me to implement Ridge next.
 
-![Lag Feature Correlation](outputs/plots/lag_feature_correlation.png)
+
 ### 2. My "same lambda" comparison against sklearn's Ridge was initially invalid
 
 My loss averages squared error over `n` samples; sklearn's Ridge sums it. With ~1,600 training rows, the same nominal λ was roughly 1,600x stronger in my version. Scaling my λ by `n_train` before comparing fixed this — afterward, my weights matched sklearn's Ridge to five decimal places.
@@ -134,9 +146,22 @@ Three separate pieces of evidence point at the same thing:
 
 One hypothesis I went in with — that GARCH, being purpose-built for volatility, would specifically shine relative to the linear model during this regime shift — turned out **not** to hold up: GARCH's fold-3 degradation was proportionally similar to (if anything slightly worse than) the linear model's. That's a real, slightly counterintuitive finding worth stating plainly rather than the more expected story I'd assumed going in.
 
-![Fold-by-Fold Comparison](outputs/plots/fold_comparison.png)
+
 
 ---
+
+## ⚠️ A Critical Evaluation Mistake (and Fix)
+
+An early version of this project evaluated all models using MSE on returns.  
+This is appropriate for regression models, but **incorrect for GARCH**, which predicts conditional variance.
+
+Fix:
+- Evaluated GARCH against **next-day squared returns**
+- Added volatility-specific interpretation instead of comparing directly to return models
+
+Takeaway:
+Choosing the wrong evaluation metric can make a correct model look incorrect.
+
 
 ## 📊 Full Results
 
@@ -213,9 +238,23 @@ Every model's worst fold is the same fold, by a wide margin.
 | Skew | 0.090 (nearly symmetric) |
 | Ljung-Box p-value (lag 20) | ≈ 0.0000 (residuals show significant autocorrelation) |
 
-![Residual Diagnostics](outputs/plots/residuals_custom_ridge_gd.png)
+
 
 ---
+
+## 📈 Visual Insight: Why Naive Works So Well
+
+The volatility series is highly persistent and smooth due to the 21-day rolling window.
+
+→ This makes "today ≈ tomorrow" a very strong baseline.
+
+In contrast:
+- More complex models overreact to noise
+- Multi-step models drift toward the mean
+- Regime shifts break all models simultaneously
+
+This explains why increased model complexity did not translate into better performance.
+
 
 ## 🤔 What I Take Away From This
 
@@ -224,6 +263,30 @@ Beating a naive persistence forecast is a genuinely known-hard problem in volati
 But the deeper diagnostics changed how I'd state that conclusion. The Ljung-Box result shows my best model's residuals still have real structure it isn't capturing — this isn't "volatility is unpredictable," it's "this specific linear, lag-only approach has a ceiling below what's actually there to find." And the fold/regime analysis shows the failures aren't random or evenly spread — they concentrate specifically around volatility regime changes (the COVID crash window most of all), across every model I tried, including the ones purpose-built for volatility. That GARCH didn't show a special advantage there, despite my expecting it to, was itself a useful correction to my assumptions.
 
 A few things I'd want to check before drawing a stronger conclusion: whether a longer/shorter lag window changes anything, whether the naive baseline holds up as well on other tickers or asset classes, whether a model with an explicit regime-switching component (rather than one set of parameters fit across all conditions) handles the fold-3-type periods better, and whether adding genuinely external information (implied volatility, macro data, news) — rather than more transformations of the same past-price data — is what's actually needed to close the gap the Ljung-Box test suggests exists.
+
+## 🧩 Why Didn’t Complex Models Win?
+
+Three key reasons:
+
+1. **Low signal-to-noise ratio** in financial returns  
+   → Hard to extract stable predictive patterns
+
+2. **Volatility clustering is real, but slow-moving**  
+   → Makes naive persistence surprisingly strong
+
+3. **Regime shifts dominate error**  
+   → Models trained on past regimes fail during sudden transitions
+
+Result:
+Model sophistication alone is not enough — adaptability matters more.
+
+## ⚠️ Limitations
+
+- Only one asset (S&P 500) and one time period (2015–2023)
+- No external features (e.g., VIX, macroeconomic indicators)
+- Fixed lag structure (5 days) may not be optimal
+- Hyperparameters (λ, ARIMA orders) not fully tuned via walk-forward
+- Linear models assume static relationships across regimes
 
 ## 🔮 Live Prediction
 
