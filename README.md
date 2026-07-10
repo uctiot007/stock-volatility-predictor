@@ -7,6 +7,8 @@ This project started as an attempt to take the linear regression and gradient de
 
 It grew from there. Once I had a working linear model, I kept asking "but is this actually good?" — which led to adding a naive baseline, then walk-forward validation, then testing whether a more standard time-series tool (ARIMA) or a model purpose-built for volatility (GARCH, and later GJR-GARCH) could do better. Along the way I also added residual diagnostics, a fold-by-fold and regime-by-regime breakdown, and a proper GARCH evaluation against the target it's actually designed for, to make sure the "nothing beats naive" conclusion wasn't hiding something more specific underneath. The most useful part of this project ended up being a finding I didn't expect going in: across every model I tried, simple to sophisticated, none of them reliably beat the simplest possible baseline — and the more sophisticated the model got, the worse it tended to do on average, even though a deeper look shows the failures aren't random, they concentrate around volatility regime changes. I think that result, and the process of uncovering it properly, is more interesting than a clean accuracy number would have been, so this README leads with it rather than hiding it.
 
+![Price, Returns, and Volatility](outputs/plots/price_returns_volatility.png)
+
 ## 🎯 Problem Statement
 
 Predict next-day realized volatility of the S&P 500 using its own recent history. This relies on a known property of markets called volatility clustering — calm and turbulent periods tend to persist for a while — so recent volatility is at least somewhat informative about tomorrow's.
@@ -98,6 +100,7 @@ Raw Prices → Log Returns → Rolling Volatility (+ Volume Features)
 
 My first gradient descent run produced predictions close to sklearn's `LinearRegression`, but the learned weights differed meaningfully. The EDA notebook makes the reason directly visible: the correlation matrix of the 5 lag features shows every pair correlated at 0.96 or higher. This makes sense once you look at the volatility series itself — it's a slow-moving 21-day rolling average, so a value from 5 days ago is nearly the same number as today's. With features this redundant, the loss surface isn't a clean bowl with one minimum, it's a flat, elongated valley where many different weight combinations give almost identical loss. This is the textbook reason to reach for regularization, which is what led me to implement Ridge next.
 
+![Lag Feature Correlation](outputs/plots/lag_feature_correlation.png)
 ### 2. My "same lambda" comparison against sklearn's Ridge was initially invalid
 
 My loss averages squared error over `n` samples; sklearn's Ridge sums it. With ~1,600 training rows, the same nominal λ was roughly 1,600x stronger in my version. Scaling my λ by `n_train` before comparing fixed this — afterward, my weights matched sklearn's Ridge to five decimal places.
@@ -130,6 +133,8 @@ Three separate pieces of evidence point at the same thing:
 - **The EDA plots** independently show the single most volatile day in the whole dataset (April 6, 2020, by the 21-day rolling measure) sits inside fold 3's window — the COVID crash.
 
 One hypothesis I went in with — that GARCH, being purpose-built for volatility, would specifically shine relative to the linear model during this regime shift — turned out **not** to hold up: GARCH's fold-3 degradation was proportionally similar to (if anything slightly worse than) the linear model's. That's a real, slightly counterintuitive finding worth stating plainly rather than the more expected story I'd assumed going in.
+
+![Fold-by-Fold Comparison](outputs/plots/fold_comparison.png)
 
 ---
 
@@ -207,6 +212,8 @@ Every model's worst fold is the same fold, by a wide margin.
 | Std | 0.015941 |
 | Skew | 0.090 (nearly symmetric) |
 | Ljung-Box p-value (lag 20) | ≈ 0.0000 (residuals show significant autocorrelation) |
+
+![Residual Diagnostics](outputs/plots/residuals_custom_ridge_gd.png)
 
 ---
 
