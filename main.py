@@ -25,6 +25,20 @@ if __name__ == "__main__":
     X = np.asarray(X, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)
 
+    # ----- Walk-forward lambda selection (more rigorous than single-split selection) -----
+    print("\n=== WALK-FORWARD LAMBDA SELECTION ===")
+    wf_lambda_results = []
+    for lam in config.LAMBDAS:
+        _, wf_mse_for_lam = walk_forward_validation(
+            X, y, n_splits=config.N_SPLITS, lr=config.LEARNING_RATE,
+            epochs=config.WALK_FORWARD_EPOCHS, lambda_=lam, penalty="l2"
+        )
+        wf_lambda_results.append((lam, wf_mse_for_lam))
+        print(f"lambda={lam:<8} Walk-forward avg MSE: {wf_mse_for_lam:.6f}")
+
+    best_lam_wf, best_wf_mse = min(wf_lambda_results, key=lambda r: r[1])
+    print(f"\nBest lambda (by walk-forward): {best_lam_wf} (MSE: {best_wf_mse:.6f})")
+
     # ----- Single chronological split -----
     split = int(config.TRAIN_TEST_SPLIT_RATIO * len(X))
     X_train_raw, X_test_raw = X[:split], X[split:]
@@ -34,7 +48,7 @@ if __name__ == "__main__":
     X_train = (X_train_raw - X_mean) / X_std
     X_test = (X_test_raw - X_mean) / X_std
 
-    # ----- Ridge lambda sweep -----
+    # ----- Ridge lambda sweep (single split) -----
     print("\n=== RIDGE LAMBDA SWEEP ===")
     ridge_sweep = {}
     results = []
@@ -78,7 +92,7 @@ if __name__ == "__main__":
         X_train, y_train, X_test, y_test, w, b, lambda_=best_lam
     )
 
-    # ----- Linear model walk-forward validation -----
+    # ----- Linear model walk-forward validation (using single-split-chosen lambda) -----
     print("\n=== WALK-FORWARD VALIDATION (5 folds) ===")
     fold_mses, avg_wf_mse = walk_forward_validation(
         X, y, n_splits=config.N_SPLITS, lr=config.LEARNING_RATE,
@@ -136,14 +150,16 @@ if __name__ == "__main__":
     print(f"{'Naive baseline (today = tomorrow)':<40}{naive_mse:>15.6f}")
     print(f"{'Custom Ridge GD (single split)':<40}{best_mse:>15.6f}")
     print(f"{'Custom Lasso GD (single split)':<40}{best_lasso_mse:>15.6f}")
-    print(f"{'Custom Ridge GD (walk-forward avg)':<40}{avg_wf_mse:>15.6f}")
+    print(f"{'Custom Ridge GD (walk-forward avg, lambda from single split)':<40}{avg_wf_mse:>15.6f}")
+    print(f"{'Custom Ridge GD (walk-forward avg, lambda from walk-forward)':<40}{best_wf_mse:>15.6f}")
     print(f"{'ARIMA (multi-step, walk-forward avg)':<40}{arima_avg_mse:>15.6f}")
     print(f"{'ARIMA (rolling, walk-forward avg)':<40}{arima_rolling_avg_mse:>15.6f}")
     print(f"{'GJR-GARCH(1,1,1) (rolling, walk-forward avg)':<40}{gjr_avg_mse:>15.6f}")
     print("=" * 55)
     print(f"{'GARCH vs squared returns (own target, own units)':<40}{garch_sq_avg:>15.8f}")
 
-    best_overall_mse = min(best_mse, best_lasso_mse, avg_wf_mse, arima_rolling_avg_mse, gjr_avg_mse)
+    best_overall_mse = min(best_mse, best_lasso_mse, avg_wf_mse, best_wf_mse,
+                            arima_rolling_avg_mse, gjr_avg_mse)
     print(f"\nBest model MSE: {best_overall_mse:.6f} vs naive baseline: {naive_mse:.6f} "
           f"(difference: {naive_mse - best_overall_mse:+.6f})")
 
@@ -152,6 +168,8 @@ if __name__ == "__main__":
         "naive_mse": naive_mse,
         "ridge_single_split_mse": best_mse,
         "ridge_best_lambda": best_lam,
+        "ridge_best_lambda_walk_forward": best_lam_wf,
+        "ridge_walk_forward_lambda_selected_mse": best_wf_mse,
         "lasso_single_split_mse": best_lasso_mse,
         "lasso_best_lambda": best_lasso_lam,
         "ridge_walk_forward_avg_mse": avg_wf_mse,
@@ -161,6 +179,7 @@ if __name__ == "__main__":
         "gjr_garch_t_weekly_refit_mse": gjr_avg_mse,
         "ridge_lambda_sweep": ridge_sweep,
         "lasso_lambda_sweep": lasso_sweep,
+        "ridge_walk_forward_lambda_sweep": {str(lam): mse for lam, mse in wf_lambda_results},
         "config": {
             "n_lags": config.N_LAGS,
             "include_volume": config.INCLUDE_VOLUME,
