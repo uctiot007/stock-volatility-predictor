@@ -229,21 +229,6 @@ But the deeper diagnostics changed how I'd state that conclusion, and going back
 
 A few things I'd want to check before drawing a stronger conclusion: whether a longer/shorter lag window changes anything, whether the naive baseline holds up as well on other tickers or asset classes, whether a model with an explicit regime-switching component handles fold-3-type periods better, whether GARCH's forecast is more useful as an *input feature* to the linear model than as a standalone predictor, and whether adding genuinely external information (implied volatility, macro data, news) is what's actually needed to close the gap the Ljung-Box test suggests exists.
 
-## 🔮 Live Prediction
-
-```bash
-python -m main            # trains every model, validates, saves outputs/results.json + trained_model.npz
-python -m src.predict     # loads the saved linear model and forecasts the next trading day
-```
-
-Example output:
-```
-Most recent trading data as of: 2026-07-02
-Predicted next-day (annualized) volatility: 0.17405
-```
-
-Worth noting: this is only ever a next-*trading*-day forecast, since the data skips weekends/holidays. Given the findings above, this forecast should be read with real skepticism rather than confidence — particularly if the market happens to be near a volatility regime change, which is exactly where every model tested here struggled most.
-
 ## 📓 Notebooks
 
 - **`notebooks/EDA.ipynb`** — price, returns, and volatility over time; the squared-returns view with fold boundaries marked; the lag-feature correlation heatmap behind the multicollinearity finding; basic volatility statistics
